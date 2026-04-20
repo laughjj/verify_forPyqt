@@ -1,1 +1,1 @@
-"""Reusable PyQt widgets for verify_forPyqt."""
+"""Reusable UI widgets."""

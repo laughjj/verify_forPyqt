@@ -1,85 +1,76 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable, List
+from collections import OrderedDict
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (
-    QAbstractItemView,
-    QHBoxLayout,
-    QLabel,
-    QListWidget,
-    QListWidgetItem,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
-
-class ProjectFileListWidget(QListWidget):
-    def __init__(self, project_name: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.project_name = project_name
-        self.setAcceptDrops(True)
-        self.setDragEnabled(True)
-        self.setDragDropMode(QAbstractItemView.DragDrop)
-        self.setDefaultDropAction(Qt.MoveAction)
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-
-    def add_files(self, file_paths: Iterable[str]) -> None:
-        existing = {self.item(i).text() for i in range(self.count())}
-        for path in file_paths:
-            if path in existing:
-                continue
-            self.addItem(QListWidgetItem(path))
-
-    def get_files(self) -> List[str]:
-        return [self.item(i).text() for i in range(self.count())]
+from app.widgets.project_card import ProjectCardWidget
 
 
 class ProjectBoardWidget(QWidget):
-    def __init__(self, projects: List[str] | None = None, parent: QWidget | None = None) -> None:
+    def __init__(self, project_names: list[str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.projects = projects or ["fish2", "TianELake"]
-        self.columns: Dict[str, ProjectFileListWidget] = {}
+        self.cards: "OrderedDict[str, ProjectCardWidget]" = OrderedDict()
 
-        self.column_container = QHBoxLayout()
-        for project in self.projects:
-            self._add_project_column(project)
+        self.scroll_widget = QWidget(self)
+        self.cards_layout = QHBoxLayout(self.scroll_widget)
+        self.cards_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.new_project_btn = QPushButton("+ 新项目")
-        self.new_project_btn.clicked.connect(self._create_project_column)
+        self.scroll = QScrollArea(self)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setWidget(self.scroll_widget)
+
+        self.add_project_btn = QPushButton("+ Add Project")
+        self.add_project_btn.clicked.connect(self.add_project)
 
         root = QVBoxLayout(self)
-        root.addLayout(self.column_container)
-        root.addWidget(self.new_project_btn)
+        root.addWidget(self.scroll)
+        root.addWidget(self.add_project_btn)
 
-    def _add_project_column(self, project_name: str) -> None:
-        card = QWidget(self)
-        card_layout = QVBoxLayout(card)
-        title = QLabel(project_name)
-        title.setAlignment(Qt.AlignCenter)
-        card_layout.addWidget(title)
+        for name in project_names:
+            self.add_project(name)
 
-        file_list = ProjectFileListWidget(project_name, card)
-        self.columns[project_name] = file_list
-        card_layout.addWidget(file_list)
+    def add_project(self, project_name: str | None = None) -> None:
+        name = (project_name or "new_project").strip()
+        if not name:
+            name = "new_project"
+        if name in self.cards:
+            i = 1
+            while f"{name}_{i}" in self.cards:
+                i += 1
+            name = f"{name}_{i}"
 
-        self.column_container.addWidget(card)
+        card = ProjectCardWidget(name, self)
+        card.rename_requested.connect(self.rename_project)
+        card.remove_requested.connect(self.remove_project)
+        self.cards[name] = card
+        self.cards_layout.addWidget(card)
 
-    def _create_project_column(self) -> None:
-        base = "new_project"
-        idx = 1
-        while f"{base}_{idx}" in self.columns:
-            idx += 1
-        self._add_project_column(f"{base}_{idx}")
+    def rename_project(self, old_name: str, new_name: str) -> None:
+        if new_name in self.cards:
+            QMessageBox.warning(self, "命名冲突", f"项目 {new_name} 已存在")
+            self.cards[old_name].title_edit.setText(old_name)
+            return
+        card = self.cards.pop(old_name)
+        card.project_name = new_name
+        self.cards[new_name] = card
 
-    def add_files_to_project(self, project_name: str, file_paths: Iterable[str]) -> None:
-        if project_name not in self.columns:
-            self._add_project_column(project_name)
-        self.columns[project_name].add_files(file_paths)
+    def remove_project(self, project_name: str) -> None:
+        card = self.cards.get(project_name)
+        if not card:
+            return
+        if card.files():
+            QMessageBox.warning(self, "禁止删除", "只能删除空项目。")
+            return
+        self.cards.pop(project_name)
+        card.setParent(None)
+        card.deleteLater()
 
-    def get_project_files(self) -> Dict[str, List[str]]:
-        return {name: widget.get_files() for name, widget in self.columns.items()}
+    def add_files_to_first_project(self, files: list[str]) -> None:
+        if not self.cards:
+            self.add_project("default")
+        first = next(iter(self.cards.values()))
+        first.add_files(files)
 
-    def first_project_name(self) -> str:
-        return next(iter(self.columns))
+    def get_mapping(self) -> dict[str, list[str]]:
+        return {name: card.files() for name, card in self.cards.items()}

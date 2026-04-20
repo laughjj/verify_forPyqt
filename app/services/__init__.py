@@ -1,1 +1,1 @@
-"""Backend integration services for verify_forPyqt."""
+"""Service layer for backend transport, mapping, and persistence."""
