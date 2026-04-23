@@ -23,6 +23,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         ui_path = Path(__file__).resolve().parent.parent / "resources" / "ui" / "main_window.ui"
         uic.loadUi(str(ui_path), self)
+        self.mainSplitter.setSizes([260, 1300])
 
         self.controller = controller
         self.config_service = config_service
