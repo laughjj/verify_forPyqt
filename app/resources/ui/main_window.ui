@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect><x>0</x><y>0</y><width>1600</width><height>980</height></rect>
+  </property>
+  <property name="windowTitle"><string>verify_forPyqt Application Shell</string></property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="shellLayout">
+    <item>
+     <widget class="QFrame" name="navigationFrame">
+      <property name="minimumSize"><size><width>220</width><height>0</height></size></property>
+      <layout class="QVBoxLayout" name="navigationLayout">
+       <item><widget class="QLabel" name="navigationTitleLabel"><property name="text"><string>导航</string></property></widget></item>
+       <item><widget class="QListWidget" name="navigationListWidget"/></item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QStackedWidget" name="contentStackedWidget"/>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar"/>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

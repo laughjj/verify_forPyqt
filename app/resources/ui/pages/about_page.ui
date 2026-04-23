@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AboutPage</class>
+ <widget class="QWidget" name="AboutPage">
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item><widget class="QLabel" name="appNameLabel"><property name="text"><string>verify_forPyqt</string></property></widget></item>
+   <item><widget class="QLabel" name="versionLabel"><property name="text"><string>Version: 0.2.0</string></property></widget></item>
+   <item><widget class="QTextEdit" name="aboutTextEdit"><property name="readOnly"><bool>true</bool></property><property name="plainText"><string>多页面可扩展桌面框架。
+当前提供任务提交页，并可继续扩展鼠标轨迹、设置、统计等模块。</string></property></widget></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
