@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SettingsPage</class>
+ <widget class="QWidget" name="SettingsPage">
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item><widget class="QLabel" name="titleLabel"><property name="text"><string>Settings</string></property></widget></item>
+   <item><widget class="QCheckBox" name="autoReconnectCheckBox"><property name="text"><string>Auto reconnect websocket (placeholder)</string></property></widget></item>
+   <item><widget class="QCheckBox" name="rememberLastPageCheckBox"><property name="text"><string>Remember last page (placeholder)</string></property></widget></item>
+   <item><widget class="QLineEdit" name="defaultScriptLineEdit"><property name="placeholderText"><string>Default script key (placeholder)</string></property></widget></item>
+   <item><spacer name="verticalSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>200</height></size></property></spacer></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
