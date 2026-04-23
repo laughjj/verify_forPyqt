@@ -1,130 +1,143 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from PyQt5 import uic
-from PyQt5.QtWidgets import QMainWindow, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtWidgets import QAction, QListWidgetItem, QMainWindow, QMessageBox, QWidget
 
 from app.controllers.task_controller import TaskController
-from app.models.dto import BatchState, BackendTaskSnapshot
-from app.models.ui_state import UiSubmissionState
+from app.services.batch_history_service import BatchHistoryService
 from app.services.config_service import ConfigService
-from app.widgets.file_explorer import FileExplorerWidget
-from app.widgets.project_board import ProjectBoardWidget
-from app.widgets.task_detail_panel import TaskDetailPanel
+from app.views.pages.about_page import AboutPage
+from app.views.pages.mouse_track_page import MouseTrackPage
+from app.views.pages.settings_page import SettingsPage
+from app.views.pages.task_submit_page import TaskSubmitPage
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, controller: TaskController, config_service: ConfigService) -> None:
+    """Application shell: menu, navigation, page registration and switching."""
+
+    def __init__(self, controller: TaskController, config_service: ConfigService, history_service: BatchHistoryService) -> None:
         super().__init__()
         ui_path = Path(__file__).resolve().parent.parent / "resources" / "ui" / "main_window.ui"
         uic.loadUi(str(ui_path), self)
 
         self.controller = controller
         self.config_service = config_service
+        self.history_service = history_service
 
-        config = self.config_service.load()
-        default_projects = config.get("recent_projects") or ["fish2", "TianELake"]
+        self.page_indexes: dict[str, int] = {}
+        self.page_titles: dict[str, str] = {}
+        self.pages: dict[str, QWidget] = {}
 
-        self.file_explorer = FileExplorerWidget(config.get("last_dir"))
-        self.project_board = ProjectBoardWidget(default_projects)
-        self.task_detail = TaskDetailPanel()
+        self.task_submit_page = TaskSubmitPage(controller, config_service, history_service, self)
+        self.mouse_track_page = MouseTrackPage(self)
+        self.settings_page = SettingsPage(self)
+        self.about_page = AboutPage(self)
 
-        self._inject_widget(self.leftHostWidget, self.file_explorer)
-        self._inject_widget(self.rightHostWidget, self.project_board)
-        self._inject_widget(self.taskDetailHostWidget, self.task_detail)
+        self.register_page("task_submit", self.task_submit_page, "任务提交")
+        self.register_page("mouse_track", self.mouse_track_page, "鼠标轨迹")
+        self.register_page("settings", self.settings_page, "设置")
+        self.register_page("about", self.about_page, "关于")
 
-        self.backendUrlLineEdit.setText(config.get("backend_url", "http://127.0.0.1:8000"))
-        self.scriptKeyComboBox.addItems(["fish2", "TianELake", "default_script"])
-        last_key = config.get("last_script_key", "fish2")
-        idx = self.scriptKeyComboBox.findText(last_key)
-        if idx >= 0:
-            self.scriptKeyComboBox.setCurrentIndex(idx)
+        self._setup_navigation()
+        self._setup_menu_bar()
+        self.switch_page("task_submit")
 
-        self._bind_signals()
-        self.append_log("前端就绪：支持 WebSocket + REST fallback 的批次任务处理")
+    def register_page(self, page_key: str, page_widget: QWidget, title: str) -> None:
+        if page_key in self.page_indexes:
+            raise ValueError(f"Duplicate page key: {page_key}")
+        index = self.contentStackedWidget.addWidget(page_widget)
+        self.page_indexes[page_key] = index
+        self.page_titles[page_key] = title
+        self.pages[page_key] = page_widget
 
-    def _inject_widget(self, host: QWidget, widget: QWidget) -> None:
-        layout = QVBoxLayout(host)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(widget)
-
-    def _bind_signals(self) -> None:
-        self.assignSelectedButton.clicked.connect(self.assign_selected_files)
-        self.startBatchButton.clicked.connect(self.start_batch)
-        self.saveConfigButton.clicked.connect(self.save_config)
-        self.cancelWsButton.clicked.connect(self.controller.reconnect_ws)
-
-        self.file_explorer.directory_changed.connect(self.on_directory_changed)
-
-        self.controller.log.connect(self.append_log)
-        self.controller.validation_error.connect(self.on_validation_error)
-        self.controller.batch_changed.connect(self.render_batch)
-        self.controller.task_snapshot_changed.connect(self.on_snapshot_changed)
-
-    def on_directory_changed(self, directory: str) -> None:
-        config = self.config_service.load()
-        config["last_dir"] = directory
-        self.config_service.save(config)
-
-    def assign_selected_files(self) -> None:
-        files = self.file_explorer.selected_files()
-        if not files:
-            QMessageBox.information(self, "提示", "请先选择至少一个文件")
+    def switch_page(self, page_key: str) -> None:
+        if page_key not in self.page_indexes:
+            QMessageBox.warning(self, "页面不存在", f"未注册页面: {page_key}")
             return
-        self.project_board.add_files_to_first_project(files)
-        self.append_log(f"已加入 {len(files)} 个文件")
+        self.contentStackedWidget.setCurrentIndex(self.page_indexes[page_key])
+        self.statusbar.showMessage(f"当前页面: {self.page_titles[page_key]}", 2000)
+        self._sync_navigation(page_key)
 
-    def start_batch(self) -> None:
-        try:
-            extra_params = self.controller.parse_extra_params(self.extraParamsLineEdit.text())
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "参数错误", str(exc))
+    def _setup_navigation(self) -> None:
+        for key, title in self.page_titles.items():
+            item = QListWidgetItem(title)
+            item.setData(Qt.UserRole, key)
+            self.navigationListWidget.addItem(item)
+        self.navigationListWidget.currentItemChanged.connect(self._on_nav_changed)
+
+    def _sync_navigation(self, page_key: str) -> None:
+        for row in range(self.navigationListWidget.count()):
+            item = self.navigationListWidget.item(row)
+            if item.data(Qt.UserRole) == page_key:
+                self.navigationListWidget.blockSignals(True)
+                self.navigationListWidget.setCurrentRow(row)
+                self.navigationListWidget.blockSignals(False)
+                break
+
+    def _on_nav_changed(self, current: QListWidgetItem, _previous: QListWidgetItem) -> None:
+        if current is None:
             return
+        key = current.data(Qt.UserRole)
+        if isinstance(key, str):
+            self.switch_page(key)
 
-        ui_state = UiSubmissionState(
-            backend_url=self.backendUrlLineEdit.text().strip(),
-            script_key=self.scriptKeyComboBox.currentText().strip(),
-            extra_params=extra_params,
-            project_files=self.project_board.get_mapping(),
+    def _setup_menu_bar(self) -> None:
+        file_menu = self.menubar.addMenu("文件(File)")
+        view_menu = self.menubar.addMenu("页面(View)")
+        tools_menu = self.menubar.addMenu("工具(Tools)")
+        help_menu = self.menubar.addMenu("帮助(Help)")
+
+        self.action_open_config = QAction("打开配置 / Open Config", self)
+        self.action_save_config = QAction("保存配置 / Save Config", self)
+        self.action_export_history = QAction("导出批次历史 / Export Batch History", self)
+        self.action_exit = QAction("退出 / Exit", self)
+
+        self.action_open_config.triggered.connect(self.task_submit_page.open_config_file)
+        self.action_save_config.triggered.connect(self.task_submit_page.save_config)
+        self.action_export_history.triggered.connect(self.task_submit_page.export_batch_history)
+        self.action_exit.triggered.connect(self.close)
+
+        file_menu.addActions([self.action_open_config, self.action_save_config, self.action_export_history, self.action_exit])
+
+        self.action_view_task = QAction("切换到任务提交页", self)
+        self.action_view_mouse = QAction("切换到鼠标轨迹页", self)
+        self.action_view_settings = QAction("切换到设置页", self)
+        self.action_view_about = QAction("切换到关于页", self)
+
+        self.action_view_task.triggered.connect(lambda: self.switch_page("task_submit"))
+        self.action_view_mouse.triggered.connect(lambda: self.switch_page("mouse_track"))
+        self.action_view_settings.triggered.connect(lambda: self.switch_page("settings"))
+        self.action_view_about.triggered.connect(lambda: self.switch_page("about"))
+
+        view_menu.addActions([self.action_view_task, self.action_view_mouse, self.action_view_settings, self.action_view_about])
+
+        self.action_reconnect_ws = QAction("重新连接 WebSocket", self)
+        self.action_clear_history = QAction("清理本地批次历史", self)
+        self.action_open_config_dir = QAction("打开配置目录", self)
+
+        self.action_reconnect_ws.triggered.connect(self.task_submit_page.reconnect_ws)
+        self.action_clear_history.triggered.connect(self.task_submit_page.clear_batch_history)
+        self.action_open_config_dir.triggered.connect(self.open_config_directory)
+
+        tools_menu.addActions([self.action_reconnect_ws, self.action_clear_history, self.action_open_config_dir])
+
+        self.action_help_about = QAction("关于", self)
+        self.action_help_usage = QAction("使用说明", self)
+        self.action_help_about.triggered.connect(lambda: self.switch_page("about"))
+        self.action_help_usage.triggered.connect(self.show_usage_help)
+        help_menu.addActions([self.action_help_about, self.action_help_usage])
+
+    def open_config_directory(self) -> None:
+        cfg_dir = self.config_service.path.parent
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(cfg_dir)))
+
+    def show_usage_help(self) -> None:
+        QMessageBox.information(
+            self,
+            "使用说明",
+            "请在“任务提交”页选择文件并分配项目，点击 Start Processing 后观察下方进度和任务明细。",
         )
-        self.controller.submit_batch(ui_state)
-
-    def render_batch(self, batch: BatchState) -> None:
-        self.batchProgressBar.setValue(batch.aggregate_progress())
-        total = len(batch.snapshots)
-        done = len([x for x in batch.snapshots.values() if x.status.value in {"SUCCESS", "FAILURE"}])
-        self.batchSummaryLabel.setText(
-            f"Batch {batch.batch_id} | script={batch.script_key} | tasks={total} | done={done} | progress={batch.aggregate_progress()}%"
-        )
-        self.task_detail.render_batch(batch)
-
-    def on_snapshot_changed(self, snapshot: BackendTaskSnapshot) -> None:
-        self.task_detail.upsert_snapshot(snapshot, snapshot.params_json.get("project_name", ""))
-        if snapshot.status.value == "FAILURE":
-            self.append_log(f"任务失败 {snapshot.id}: {snapshot.error_message}")
-
-    def on_validation_error(self, message: str) -> None:
-        QMessageBox.warning(self, "提交校验失败", message)
-        self.append_log("提交校验失败\n" + message)
-
-    def append_log(self, message: str) -> None:
-        self.logTextEdit.append(message)
-
-    def save_config(self) -> None:
-        try:
-            parsed = json.loads(self.extraParamsLineEdit.text() or "{}")
-            if not isinstance(parsed, dict):
-                raise ValueError
-        except Exception:
-            parsed = {}
-        config = {
-            "backend_url": self.backendUrlLineEdit.text().strip(),
-            "last_script_key": self.scriptKeyComboBox.currentText().strip(),
-            "recent_projects": list(self.project_board.cards.keys()),
-            "last_dir": self.file_explorer.path_input.text().strip(),
-            "last_extra_params": parsed,
-        }
-        self.config_service.save(config)
-        self.append_log("配置已保存")

@@ -1,11 +1,12 @@
 # verify_forPyqt
 
-面向 `verifyfor_django` `20260227run` 分支的 PyQt5 桌面任务提交前端。
+`verify_forPyqt` 已升级为 **可扩展的多功能 PyQt5 桌面应用框架**。
 
-> 关键定位：UI 支持“多项目/多文件”组织，但后端任务模型是“单 task 对应单 input_path”。
-> 本项目通过 **batch orchestration layer** 将一次 UI 提交拆解为多个后端 task，并在本地维护 batch 状态与历史。
+- `MainWindow` = Application Shell（菜单栏 + 左侧导航 + 中间多页面栈 + 状态栏）
+- `TaskSubmitPage` = 任务提交与后端通信功能页
+- 预留页面：`MouseTrackPage`、`SettingsPage`、`AboutPage`
 
-## 真实后端契约（已适配）
+## 后端契约（verifyfor_django / 20260227run）
 
 ### REST
 - `POST /api/tasks/`
@@ -14,33 +15,39 @@
 ### WebSocket
 - `ws://<host>/ws/tasks/<task_id>/`
 
-### 创建任务 payload 字段
+### 创建任务字段
 - `script_key`
 - `input_path`
 - `params_json`
 
-### 任务快照字段（前端解析）
-- `id`
-- `script_key`
-- `input_path`
-- `params_json`
-- `status` (`QUEUED|STARTED|PROGRESS|SUCCESS|FAILURE`)
-- `progress`
-- `result_json`
-- `error_message`
-- `created_at`
-- `updated_at`
-- `started_at`
-- `finished_at`
+### 状态值
+- `QUEUED`
+- `STARTED`
+- `PROGRESS`
+- `SUCCESS`
+- `FAILURE`
 
-## 架构说明（系统化 / 分层）
+## 架构（长期扩展导向）
 
 ```text
 app/
   main.py
-  resources/ui/main_window.ui
-  views/main_window.py
-  controllers/task_controller.py
+  resources/ui/
+    main_window.ui
+    pages/
+      task_submit_page.ui
+      mouse_track_page.ui
+      settings_page.ui
+      about_page.ui
+  views/
+    main_window.py
+    pages/
+      task_submit_page.py
+      mouse_track_page.py
+      settings_page.py
+      about_page.py
+  controllers/
+    task_controller.py
   widgets/
     file_explorer.py
     project_board.py
@@ -59,60 +66,89 @@ app/
     ui_state.py
 ```
 
-### View 层
-- 从 `.ui` 加载主窗口骨架（不承载业务逻辑）
-- 注入自定义 widgets（文件浏览器/项目看板/任务明细）
-- 绑定按钮与 controller 信号
-- 渲染 batch summary、日志、任务列表
+## MainWindow（应用壳）职责
 
-### Controller 层
-- 收集 UI 输入
-- 做提交前校验（路径存在、是文件、去重、非空）
-- 调用 payload builder 拆分子任务
-- 异步提交任务（QThreadPool/QRunnable）
-- 优先订阅 WebSocket 更新，REST 轮询兜底
-- 维护本地 batch state（聚合进度、子任务状态）
+- 仅负责：
+  - 加载主窗口骨架 `.ui`
+  - 管理菜单栏 `QAction`
+  - 管理左侧导航
+  - 管理 `QStackedWidget`
+  - 页面注册 `register_page(page_key, page_widget, title)`
+  - 页面切换 `switch_page(page_key)`
+- 不承载任务提交业务细节
 
-### Service 层
-- `backend_client`: 真实 REST 调用
-- `ws_client`: WebSocket 抽象（可断线重连）
-- `payload_builder`: UI 映射到后端 payload
-- `file_mapping_service`: 输入校验和规范化
-- `config_service`: 本地配置持久化
-- `batch_history_service`: 本地 batch 历史持久化（不依赖后端 records）
+## TaskSubmitPage（独立业务页）职责
 
-## Batch 编排规则
+- 复用并承载：
+  - `TaskController`
+  - `FileExplorerWidget`
+  - `ProjectBoardWidget`
+  - `TaskDetailPanel`
+- 功能：
+  - backend URL / script_key / extra params
+  - 左侧文件浏览器 + 右侧项目分组
+  - Start Batch / Reconnect WS / Save Config
+  - batch 进度、日志、子任务详情
 
-一次“开始处理”会生成一个本地 `batch_id`，然后：
-1. 遍历 project -> files
-2. 对每个 file 生成一个后端任务 payload：
-   - `script_key`: UI 选择
-   - `input_path`: 文件绝对路径
-   - `params_json`: 至少包含
-     - `project_name`
-     - `client = verify_forPyqt`
-     - `batch_id`
-     - 额外 UI 参数
-3. 将后端返回的 `task_id` 绑定到 batch 子任务
-4. 实时显示 batch 聚合进度与每个子任务状态
+## Batch 编排层（解决 UI 与后端模型矛盾）
 
-## WebSocket 与 fallback 说明
+UI 一次可组织多个项目和多文件；提交时按文件拆分为多个后端任务：
 
-- 默认为每个 task 订阅：`/ws/tasks/<task_id>/`
-- 若 WS 断开/异常/消息格式错误，不会导致 UI 崩溃
-- Controller 会记录日志并继续使用 REST `GET /api/tasks/<uuid>/` 轮询兜底
+每个文件对应一个 payload：
+- `script_key`: 来自 UI
+- `input_path`: 文件绝对路径
+- `params_json` 至少包含：
+  - `project_name`
+  - `client = "verify_forPyqt"`
+  - `batch_id`
+  - 额外 UI 参数
+
+## 线程与通信策略
+
+- 所有 REST 调用通过 `QThreadPool + QRunnable` 执行，不阻塞 GUI 线程
+- 优先 WebSocket 实时更新
+- WebSocket 异常时自动回落到 REST polling（fallback）
+
+## 菜单栏说明
+
+### 文件(File)
+- 打开配置 / Open Config
+- 保存配置 / Save Config
+- 导出批次历史 / Export Batch History
+- 退出 / Exit
+
+### 页面(View)
+- 切换到任务提交页
+- 切换到鼠标轨迹页
+- 切换到设置页
+- 切换到关于页
+
+### 工具(Tools)
+- 重新连接 WebSocket
+- 清理本地批次历史
+- 打开配置目录
+
+### 帮助(Help)
+- 关于
+- 使用说明
 
 ## 本地持久化
 
-- 配置文件：`~/.verify_forpyqt/config.json`
+- `~/.verify_forpyqt/config.json`
   - backend URL
   - 最近目录
-  - 最近 script_key
+  - 最近 script key
   - 最近项目名
-- 历史文件：`~/.verify_forpyqt/batch_history.json`
-  - batch 基本信息
-  - 聚合进度
-  - 子任务最终快照
+- `~/.verify_forpyqt/batch_history.json`
+  - 本地批次历史（不依赖后端 records API）
+
+## 如何新增新页面
+
+1. 新建页面 `.ui`：`app/resources/ui/pages/<new_page>.ui`
+2. 新建页面 view：`app/views/pages/<new_page>.py`
+3. 在 `MainWindow.__init__` 中实例化并注册：
+   - `register_page("new_key", new_page_widget, "新页面")`
+4. 在导航和菜单中添加对应入口，统一调用 `switch_page("new_key")`
 
 ## 运行
 
@@ -122,11 +158,3 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python -m app.main
 ```
-
-## 关键设计决策
-
-1. **UI 驱动 + 业务分层**：避免 `main.py`/`main_window.py` 巨石化。
-2. **多项目 UI vs 单任务后端**：通过 batch 编排层解决结构矛盾。
-3. **非阻塞网络**：所有 REST 调用在 worker 中执行，主线程只渲染。
-4. **可靠性优先**：WS 优先，REST fallback；后端离线只报错不崩溃。
-5. **可维护 objectName**：`.ui` 中关键组件均有稳定命名，便于后续自动化测试与维护。

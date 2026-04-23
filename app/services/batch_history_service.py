@@ -24,3 +24,10 @@ class BatchHistoryService:
         history = self.load()
         history.insert(0, snapshot)
         self.path.write_text(json.dumps(history[:100], ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def clear(self) -> None:
+        self.path.write_text("[]", encoding="utf-8")
+
+    def export_to(self, export_path: Path) -> None:
+        data = self.path.read_text(encoding="utf-8") if self.path.exists() else "[]"
+        export_path.write_text(data, encoding="utf-8")

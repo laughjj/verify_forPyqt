@@ -1,1 +1,1 @@
-"""View layer."""
+"""View layer: application shell and feature pages."""

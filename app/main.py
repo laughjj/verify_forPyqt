@@ -17,6 +17,7 @@ def main() -> int:
     app = QApplication(sys.argv)
 
     config_service = ConfigService()
+    history_service = BatchHistoryService()
     config = config_service.load()
 
     backend_client = BackendClient(config.get("backend_url", "http://127.0.0.1:8000"))
@@ -25,10 +26,10 @@ def main() -> int:
         backend_client=backend_client,
         ws_client=ws_client,
         file_mapping_service=FileMappingService(),
-        history_service=BatchHistoryService(),
+        history_service=history_service,
     )
 
-    window = MainWindow(controller=controller, config_service=config_service)
+    window = MainWindow(controller=controller, config_service=config_service, history_service=history_service)
     window.show()
     return app.exec_()
 

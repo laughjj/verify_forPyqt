@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MouseTrackPage</class>
+ <widget class="QWidget" name="MouseTrackPage">
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item><widget class="QLabel" name="titleLabel"><property name="text"><string>Mouse Track Page (Placeholder)</string></property></widget></item>
+   <item><widget class="QTextEdit" name="descriptionTextEdit"><property name="readOnly"><bool>true</bool></property><property name="plainText"><string>未来可扩展：实时轨迹采集、可视化、导出分析。</string></property></widget></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

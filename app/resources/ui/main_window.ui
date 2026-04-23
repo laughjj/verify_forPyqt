@@ -3,146 +3,27 @@
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
   <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>1500</width>
-    <height>920</height>
-   </rect>
+   <rect><x>0</x><y>0</y><width>1600</width><height>980</height></rect>
   </property>
-  <property name="windowTitle">
-   <string>verify_forPyqt Task Client</string>
-  </property>
+  <property name="windowTitle"><string>verify_forPyqt Application Shell</string></property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="centralLayout">
+   <layout class="QHBoxLayout" name="shellLayout">
     <item>
-     <widget class="QGroupBox" name="backendGroupBox">
-      <property name="title">
-       <string>Backend &amp; Script</string>
-      </property>
-      <layout class="QGridLayout" name="backendGridLayout">
-       <item row="0" column="0">
-        <widget class="QLabel" name="backendUrlLabel">
-         <property name="text">
-          <string>Backend URL</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QLineEdit" name="backendUrlLineEdit"/>
-       </item>
-       <item row="0" column="2">
-        <widget class="QLabel" name="scriptKeyLabel">
-         <property name="text">
-          <string>Script Key</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="3">
-        <widget class="QComboBox" name="scriptKeyComboBox"/>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="extraOptionsLabel">
-         <property name="text">
-          <string>Extra Params(JSON)</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1" colspan="3">
-        <widget class="QLineEdit" name="extraParamsLineEdit"/>
-       </item>
+     <widget class="QFrame" name="navigationFrame">
+      <property name="minimumSize"><size><width>220</width><height>0</height></size></property>
+      <layout class="QVBoxLayout" name="navigationLayout">
+       <item><widget class="QLabel" name="navigationTitleLabel"><property name="text"><string>导航</string></property></widget></item>
+       <item><widget class="QListWidget" name="navigationListWidget"/></item>
       </layout>
      </widget>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="mainContentLayout">
-      <item>
-       <widget class="QGroupBox" name="leftGroupBox">
-        <property name="title">
-         <string>File Explorer</string>
-        </property>
-        <layout class="QVBoxLayout" name="leftGroupLayout">
-         <item>
-          <widget class="QWidget" name="leftHostWidget" native="true"/>
-         </item>
-        </layout>
-       </widget>
-      </item>
-      <item>
-       <widget class="QGroupBox" name="rightGroupBox">
-        <property name="title">
-         <string>Project Board</string>
-        </property>
-        <layout class="QVBoxLayout" name="rightGroupLayout">
-         <item>
-          <widget class="QWidget" name="rightHostWidget" native="true"/>
-         </item>
-        </layout>
-       </widget>
-      </item>
-     </layout>
-    </item>
-    <item>
-     <layout class="QHBoxLayout" name="actionLayout">
-      <item>
-       <widget class="QPushButton" name="assignSelectedButton">
-        <property name="text">
-         <string>Assign Selected Files</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="startBatchButton">
-        <property name="text">
-         <string>Start Processing</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="cancelWsButton">
-        <property name="text">
-         <string>Reconnect WS</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="saveConfigButton">
-        <property name="text">
-         <string>Save Config</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </item>
-    <item>
-     <widget class="QProgressBar" name="batchProgressBar">
-      <property name="value">
-       <number>0</number>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QLabel" name="batchSummaryLabel">
-      <property name="text">
-       <string>Batch summary will appear here.</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QSplitter" name="bottomSplitter">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-      <widget class="QTextEdit" name="logTextEdit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-      <widget class="QWidget" name="taskDetailHostWidget" native="true"/>
-     </widget>
+     <widget class="QStackedWidget" name="contentStackedWidget"/>
     </item>
    </layout>
   </widget>
+  <widget class="QMenuBar" name="menubar"/>
+  <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <resources/>
  <connections/>
